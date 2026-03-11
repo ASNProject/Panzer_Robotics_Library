@@ -35,7 +35,7 @@ const char* password = "your-xxxxxx"; // Change this with your password SSID
 PanzerRobotics panzer;
 
 #define FIRMWARE_VERSION 1.0 // Always Update 
-#define UPDATE_URL "https://asnproject.github.io/firmware/firmware.json" // URL to check for updates
+#define UPDATE_URL "https://xxxxxxx.github.io/firmware/firmware.json" // URL to check for updates
 
 void setup() {
   Serial.begin(115200);

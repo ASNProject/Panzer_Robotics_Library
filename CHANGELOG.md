@@ -32,10 +32,11 @@
 
 ## Changelog Project
 
-### [Unreleased]
+### [v1.0]
 - Create initial project
 - Add POST ESP32 Data to API
 - Add GET data from API
 - Add UPDATE data to API
 - Add GET data by ID from API
 - Add Firmware update via OTA (Github Version)
+- Add WiFi Manager

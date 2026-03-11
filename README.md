@@ -27,6 +27,7 @@ Panzer Robotics Library: A comprehensive library designed specifically for the E
     - [x] GET data from api by id
 - [x] Stream ESP32CAM
 - [x] Update Firmware with OTA (Github Version)
+- [x] WiFi Manager
 <!-- - [ ] Capture camera using Raspberry Pi 4 camera
 - [x] Send classification using Telegram -->
 
@@ -51,5 +52,6 @@ Enjoy!!!
 
 ###### Author & Licence by
 
-ASNProject<br />
+author: ASNProject<br />
 email: asnproject02@gmail.com
+website: panzerrobotics.com
