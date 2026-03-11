@@ -12,10 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-void setup(){
-    // Setup Code
+#include "PanzerRobotics.h"
+
+PanzerRobotics panzer;
+
+void setup() {
+    Serial.begin(115200);
+
+    panzer.wifiBegin("PANZER_SETUP", "1234567890");
+
+    //=====================================================================================//
+    //==Jika ingin mengambil informasi WiFi bisa gunakan getWiFiInfo seperti berikut ini:==//
+    //=====================================================================================//
+    delay(2000);
+    WiFiInfo info = panzer.getWiFiInfo();
+
+    Serial.println("===== WIFI INFO =====");
+    Serial.println(info.status == WIFI_CONNECTED ? "CONNECTED" :
+                   info.status == WIFI_AP_MODE ? "AP MODE" : "DISCONNECTED");
+
+    Serial.println("SSID     : " + info.ssid);
+    Serial.println("IP       : " + info.ip);
+    Serial.println("Gateway  : " + info.gateway);
+    Serial.println("Subnet   : " + info.subnet);
+    Serial.println("RSSI     : " + String(info.rssi));
+    Serial.println("AP IP    : " + info.ap_ip);
+
 }
 
-void main(){
-    // Main Code
+void loop() {
+    panzer.handleClient();
 }

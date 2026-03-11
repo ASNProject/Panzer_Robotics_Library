@@ -39,3 +39,4 @@
 - Add UPDATE data to API
 - Add GET data by ID from API
 - Add Firmware update via OTA (Github Version)
+- Add WiFi Manager

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#pragma once
 #ifndef PanzerRobotics_h
 #define PanzerRobotics_h
 
@@ -24,7 +25,10 @@
 #include "OV2640.h"
 #include <ESP32httpUpdate.h>
 
-// Camera settings
+// =======================================================
+// ================= CAMERA GPIO CONFIG ==================
+// =======================================================
+
 #define PWDN_GPIO_NUM     32
 #define RESET_GPIO_NUM    -1
 #define XCLK_GPIO_NUM      0
@@ -43,40 +47,97 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
+// =======================================================
+// ================= EEPROM CONFIG =======================
+// =======================================================
+
+#define EEPROM_SIZE   128
+#define EEPROM_MAGIC  0xA5A5A5A5
+
+struct WiFiConfig {
+    uint32_t magic;
+    char ssid[33];
+    char pass[65];
+};
+
+// =======================================================
+// ================= WIFI STATE ==========================
+// =======================================================
+
+enum WiFiState {
+    WIFI_IDLE = 0,
+    WIFI_CONNECTING,
+    WIFI_CONNECTED,
+    WIFI_AP_MODE,
+    WIFI_DISCONNECTED
+};
+
+struct WiFiInfo {
+    WiFiState status;
+    String ssid;
+    String ip;
+    String gateway;
+    String subnet;
+    String ap_ip;
+    int rssi;
+};
+
+// =======================================================
+// ================= MAIN CLASS ==========================
+// =======================================================
+
 class PanzerRobotics {
-    public:
-        static const char HEADER[];
-        static const char BOUNDARY[];
-        static const char CTNTTYPE[];
-        static const int hdrLen;
-        static const int bdrLen;
-        static const int cntLen;
-        
-        PanzerRobotics();
-        
-        // Rest API
-        String send(const char* serverUrl, StaticJsonDocument<200>& jsonDoc);
-        String get(const char* serverUrl);
-        String update(const char* serverUrl, StaticJsonDocument<200>& jsonDoc);
-        String getById(const char* serverUrl, const char* id);
 
-        // Firmware OTA
-        bool checkUpdate(const char* updateUrl, double currentVersion);
-        void updateFirmware(const char* updateUrl);
+public:
 
-        // ESP32Cam Streaming
-        String esp32cam();
-        void handleClient();
-        void streamMJPEG();
-        void captureJPG();
-    
-    private:
-        WebServer server;
-        OV2640 cam;
+    static const char HEADER[];
+    static const char BOUNDARY[];
+    static const char CTNTTYPE[];
+    static const int hdrLen;
+    static const int bdrLen;
+    static const int cntLen;
 
-        void handleJPGStream();
-        void handleJPG();
-        void handleNotFound();
+    PanzerRobotics();
+    ~PanzerRobotics() = default;   
+
+    // REST
+    String send(const char* serverUrl, StaticJsonDocument<200>& jsonDoc);
+    String get(const char* serverUrl);
+    String update(const char* serverUrl, StaticJsonDocument<200>& jsonDoc);
+    String getById(const char* serverUrl, const char* id);
+
+    // OTA
+    bool checkUpdate(const char* updateUrl, double currentVersion);
+    void updateFirmware(const char* updateUrl);
+
+    // Camera
+    String esp32cam();
+    void handleClient();
+    void handleJPGStream();
+    void handleJPG();
+
+    // WiFi
+    void wifiBegin(const char* apSsid, const char* apPass);
+    WiFiInfo getWiFiInfo();
+    bool isWiFiConnected();
+
+private:
+
+    WebServer server;
+    OV2640 cam;
+
+    WiFiState wiFiState;
+    unsigned long wifiStartTime;
+    WiFiConfig wifiConfig;
+
+    bool connectWiFiFromEEPROM();
+    void startAPMode(const char* apSsid, const char* apPass);
+
+    void setupWeb();
+    String webPage();
+    void handleStatus();
+    void disconnectWiFi();
+    void handleNotFound();
 };
 
 #endif
