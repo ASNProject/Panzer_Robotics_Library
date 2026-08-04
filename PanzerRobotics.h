@@ -16,6 +16,8 @@
 #ifndef PanzerRobotics_h
 #define PanzerRobotics_h
 
+#define PANZER_LIBRARY_VERSION "1.0.0"
+
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -82,6 +84,22 @@ struct WiFiInfo {
     int rssi;
 };
 
+typedef float (*SensorCallback)();
+typedef void (*ActionCallback)();
+
+typedef void (*ReceiveCallback)(JsonObject data);
+
+typedef void (*SwitchCallback)(
+    const char* key,
+    bool value
+);
+
+typedef void (*ButtonCallback)(
+    const char* key
+);
+
+
+
 // =======================================================
 // ================= MAIN CLASS ==========================
 // =======================================================
@@ -89,6 +107,10 @@ struct WiFiInfo {
 class PanzerRobotics {
 
 public:
+
+    constexpr static uint8_t MAX_SENSOR = 32;
+    constexpr static uint8_t MAX_OUTPUT = 32;
+    constexpr static uint8_t MAX_ACTION = 32;
 
     static const char HEADER[];
     static const char BOUNDARY[];
@@ -99,6 +121,23 @@ public:
 
     PanzerRobotics();
     ~PanzerRobotics() = default;   
+
+    // CORE
+    void begin();
+    void update();
+
+    void enableDebug(bool enable = true);
+
+    // DEVICE
+    void setDeviceName(const char* name);
+    void setFirmware(const char* version);
+    void setAuthor(const char* author);
+    void setModel(const char* model);
+    void setSerialNumber(const char* serialNumber);
+
+    // DASHBOARD
+    void beginDashboard();
+    void setSendInterval(uint32_t interval);
 
     // REST
     String send(const char* serverUrl, StaticJsonDocument<200>& jsonDoc);
@@ -121,7 +160,102 @@ public:
     WiFiInfo getWiFiInfo();
     bool isWiFiConnected();
 
+    // SENSOR & ACTION
+    void addSensor(const char* key, SensorCallback callback);
+    void removeSensor(const char* key);
+
+    // OUTPUT
+    void addSwitch(const char* key, uint8_t pin);
+    void writeSwitch(const char* key, bool state);
+    bool getButton(const char* key);
+
+    // Alias Dashboard
+    inline void addSwitch(const char* key, uint8_t pin)
+    {
+        addSwitch(key, pin);
+    }
+
+    inline void writeSwitch(const char* key, bool state)
+    {
+        writeSwitch(key, state);
+    }
+
+    // ACTION
+    void addAction(const char* key, ActionCallback callback);
+
+    // Alias Dashboard
+    inline void addButton(const char* key, ActionCallback callback)
+    {
+        addAction(key, callback);
+    }
+
+    // LOGGER
+    void info(const String& message);
+    void warning(const String& message);
+    void error(const String& message);
+
+    void onReceive(
+        ReceiveCallback callback
+    );
+
+    void onSwitch(
+        SwitchCallback callback
+    );
+
+    void onButton(
+        ButtonCallback callback
+    );
+
 private:
+    struct SensorItem
+    {
+        const char* key;
+        SensorCallback callback;
+    };
+
+    struct OutputItem
+    {
+        const char* key;
+        uint8_t pin;
+        bool state = false;
+        String value = "";
+    };
+
+    struct ActionItem
+    {
+        const char* key;
+        ActionCallback callback;
+    };
+
+    SensorItem sensors[MAX_SENSOR];
+
+    OutputItem outputs[MAX_OUTPUT];
+
+    ActionItem actions[MAX_ACTION];
+
+    uint8_t sensorCount = 0;
+
+    uint8_t outputCount = 0;
+
+    uint8_t actionCount = 0;
+
+    const char* deviceName = "ESP32";
+
+    const char* firmwareVersion = "1.0.0";
+
+    const char* author = "";
+
+    const char* model = "";
+
+    const char* serialNumber = "";
+
+    bool dashboardEnabled = false;
+
+    bool debugEnabled = false;
+
+    uint32_t sendInterval = 1000;
+
+    uint32_t lastSend = 0;
 
     WebServer server;
     OV2640 cam;
@@ -138,6 +272,22 @@ private:
     void handleStatus();
     void disconnectWiFi();
     void handleNotFound();
+
+    void sendDeviceInfo();
+
+    void sendSensorPacket();
+
+    void receivePacket();
+
+    void processControl(JsonObject data);
+
+    void processAction(const String& action);
+
+    ReceiveCallback receiveCallback = nullptr;
+
+    SwitchCallback switchCallback = nullptr;
+
+    ButtonCallback buttonCallback = nullptr;
 };
 
 #endif

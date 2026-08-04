@@ -37,10 +37,28 @@ const int PanzerRobotics::cntLen = strlen(CTNTTYPE);
 
 PanzerRobotics::PanzerRobotics() : server(80) {
     EEPROM.begin(EEPROM_SIZE);
+
     wiFiState = WIFI_IDLE;
     wifiStartTime = 0;
+
+    dashboardEnabled = false;
+    debugEnabled = false;
+
+    sensorCount = 0;
+    outputCount = 0;
+    actionCount = 0;
+
+    sendInterval = 1000;
+    lastSend = 0;
 }
 
+// CORE
+void PanzerRobotics::begin()
+{
+    Serial.begin(115200);
+
+    info("Panzer Robotics Started");
+}
 // ================= REST =================
 
 String PanzerRobotics::send(const char* serverUrl, StaticJsonDocument<200>& jsonDoc) {
@@ -576,4 +594,347 @@ void PanzerRobotics::disconnectWiFi() {
     wiFiState = WIFI_AP_MODE;
 
     server.send(200, "text/plain", "Switched to AP Mode");
+}
+
+void PanzerRobotics::update()
+{
+    handleClient();
+
+    if (!dashboardEnabled)
+        return;
+
+    receivePacket();
+
+    if (millis() - lastSend >= sendInterval)
+    {
+        lastSend = millis();
+        sendSensorPacket();
+    }
+}
+
+void PanzerRobotics::enableDebug(bool enable)
+{
+    debugEnabled = enable;
+}
+
+// CORE
+void PanzerRobotics::info(const String &message)
+{
+    if (!debugEnabled)
+        return;
+
+    Serial.print("[INFO] ");
+    Serial.println(message);
+}
+
+void PanzerRobotics::warning(const String &message)
+{
+    if (!debugEnabled)
+        return;
+
+    Serial.print("[WARNING] ");
+    Serial.println(message);
+}
+
+void PanzerRobotics::error(const String &message)
+{
+    if (!debugEnabled)
+        return;
+
+    Serial.print("[ERROR] ");
+    Serial.println(message);
+}
+
+void PanzerRobotics::setDeviceName(const char *name)
+{
+    deviceName = name;
+}
+
+void PanzerRobotics::setFirmware(const char *version)
+{
+    firmwareVersion = version;
+}
+
+void PanzerRobotics::setAuthor(const char *name)
+{
+    author = name;
+}
+
+void PanzerRobotics::setModel(const char *name)
+{
+    model = name;
+}
+
+void PanzerRobotics::setSerialNumber(const char *serial)
+{
+    serialNumber = serial;
+}
+
+void PanzerRobotics::beginDashboard()
+{
+    dashboardEnabled = true;
+
+    info("Dashboard Enabled");
+}
+
+void PanzerRobotics::setSendInterval(uint32_t interval)
+{
+    sendInterval = interval;
+}
+
+void PanzerRobotics::addSensor(
+    const char* key,
+    SensorCallback callback)
+{
+    if(sensorCount >= MAX_SENSOR)
+    {
+        warning("Maximum sensor reached");
+        return;
+    }
+
+    sensors[sensorCount].key = key;
+    sensors[sensorCount].callback = callback;
+
+    sensorCount++;
+
+    info(String("Sensor Registered : ") + key);
+}
+
+void PanzerRobotics::removeSensor(const char* key)
+{
+    for(uint8_t i = 0; i < sensorCount; i++)
+    {
+        if(strcmp(sensors[i].key, key) == 0)
+        {
+            for(uint8_t j = i; j < sensorCount - 1; j++)
+            {
+                sensors[j] = sensors[j + 1];
+            }
+
+            sensorCount--;
+
+            info(String("Sensor Removed : ") + key);
+
+            return;
+        }
+    }
+}
+
+void PanzerRobotics::addSwitch(
+    const char* key,
+    uint8_t pin)
+{
+    if(outputCount >= MAX_OUTPUT)
+    {
+        warning("Maximum output reached");
+        return;
+    }
+
+    outputs[outputCount].key = key;
+    outputs[outputCount].pin = pin;
+
+    pinMode(pin, OUTPUT);
+
+    outputCount++;
+
+    info(String("Switch Registered : ") + key);
+}
+
+void PanzerRobotics::writeSwitch(
+    const char* key,
+    const String& value)
+{
+    for(uint8_t i = 0; i < outputCount; i++)
+    {
+        if(strcmp(outputs[i].key, key) == 0)
+        {
+            outputs[i].value = value;
+
+            outputs[i].state =
+                value == "true";
+
+            digitalWrite(
+                outputs[i].pin,
+                outputs[i].state ? HIGH : LOW
+            );
+
+            return;
+        }
+    }
+
+    warning(
+        String("Unknown Switch : ") + key
+    );
+}
+
+void PanzerRobotics::addAction(
+    const char* key,
+    ActionCallback callback)
+{
+    if(actionCount >= MAX_ACTION)
+    {
+        warning("Maximum action reached");
+        return;
+    }
+
+    actions[actionCount].key = key;
+    actions[actionCount].callback = callback;
+
+    actionCount++;
+
+    info(String("Button Registered : ") + key);
+}
+
+void PanzerRobotics::sendSensorPacket()
+{
+    StaticJsonDocument<1024> doc;
+
+    doc["type"] = "sensor";
+    doc["device"] = deviceName;
+
+    JsonObject data = doc.createNestedObject("data");
+
+    for(uint8_t i = 0; i < sensorCount; i++)
+    {
+        if(sensors[i].callback == nullptr)
+            continue;
+
+        data[sensors[i].key] = sensors[i].callback();
+    }
+
+    serializeJson(doc, Serial);
+    Serial.println();
+}
+
+void PanzerRobotics::receivePacket()
+{
+    if (!Serial.available())
+        return;
+
+    String packet = Serial.readStringUntil('\n');
+
+    if (packet.length() == 0)
+        return;
+
+    StaticJsonDocument<512> doc;
+
+    DeserializationError err =
+        deserializeJson(doc, packet);
+
+    if (err)
+    {
+        warning("Invalid JSON");
+        return;
+    }
+
+    // ================= Receive Callback =================
+
+    if (receiveCallback)
+    {
+        receiveCallback(
+            doc.as<JsonObject>()
+        );
+    }
+
+    String type =
+        doc["type"] | "";
+
+    if (type == "control")
+    {
+        processControl(
+            doc.as<JsonObject>()
+        );
+    }
+    else if (type == "button")
+    {
+        processAction(
+            doc["key"] | ""
+        );
+    }
+}
+
+void PanzerRobotics::processControl(
+    JsonObject data)
+{
+    const char* key =
+        data["key"];
+
+    String value =
+        data["value"] | "";
+
+    writeSwitch(
+        key,
+        value
+    );
+
+    // ================= Switch Callback =================
+
+    if (switchCallback)
+    {
+        switchCallback(
+            key,
+            value
+        );
+    }
+}
+
+void PanzerRobotics::processAction(
+    const String& action)
+{
+    for (uint8_t i = 0; i < actionCount; i++)
+    {
+        if (action == actions[i].key)
+        {
+            if (actions[i].callback)
+            {
+                actions[i].callback();
+            }
+
+            // ================= Button Callback =================
+
+            if (buttonCallback)
+            {
+                buttonCallback(
+                    action.c_str()
+                );
+            }
+
+            return;
+        }
+    }
+
+    warning(
+        String("Unknown Button : ") + action
+    );
+}
+void PanzerRobotics::onReceive(
+    ReceiveCallback callback)
+{
+    receiveCallback = callback;
+}
+
+void PanzerRobotics::onSwitch(
+    SwitchCallback callback)
+{
+    switchCallback = callback;
+}
+
+void PanzerRobotics::onButton(
+    ButtonCallback callback)
+{
+    buttonCallback = callback;
+}
+
+String PanzerRobotics::getButton(
+    const char* key)
+{
+    for(uint8_t i = 0; i < outputCount; i++)
+    {
+        if(strcmp(outputs[i].key, key) == 0)
+        {
+            return outputs[i].value;
+        }
+    }
+
+    return "";
 }
