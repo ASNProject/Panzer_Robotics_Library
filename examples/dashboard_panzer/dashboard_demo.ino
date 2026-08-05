@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Copyright 2026 M S I
+//
+// Dashboard Example
+//
+
 #include <PanzerRobotics.h>
 
 PanzerRobotics Panzer;
-
-// ======================================================
-// Pin Configuration
-// ======================================================
 
 #define RELAY1 2
 #define RELAY2 4
 
 // ======================================================
-// Sensor Callbacks
+// SENSOR
 // ======================================================
 
 float readTemperature()
@@ -37,45 +38,31 @@ float readHumidity()
     return random(450, 900) / 10.0;
 }
 
+float readGas()
+{
+    return random(100, 500);
+}
+
 // ======================================================
-// Button Callbacks
+// BUTTON ACTION
 // ======================================================
 
 void restartESP()
 {
     Serial.println("Restart Button Pressed");
-
-    // ESP.restart();
 }
 
-// ======================================================
-// Receive Callbacks
-// ======================================================
-
-void onReceive(JsonObject data)
+void captureImage()
 {
-    Serial.println("Packet Received");
-
-    serializeJsonPretty(data, Serial);
-    Serial.println();
-}
-
-void onSwitch(const char* key, bool value)
-{
-    Serial.print("Switch : ");
-    Serial.print(key);
-    Serial.print(" = ");
-    Serial.println(value ? "ON" : "OFF");
-}
-
-void onButton(const char* key)
-{
-    Serial.print("Button : ");
-    Serial.println(key);
+    Serial.println("Capture Button Pressed");
 }
 
 void setup()
 {
+    Serial.begin(115200);
+
+    randomSeed(micros());
+
     Panzer.begin();
 
     Panzer.enableDebug();
@@ -84,30 +71,97 @@ void setup()
 
     Panzer.setSendInterval(1000);
 
-    // ================= Register Sensors =================
+    // ==========================================
+    // Device Information
+    // ==========================================
+
+    Panzer.setDeviceName("ESP32 Dashboard");
+
+    Panzer.setFirmware("1.0.0");
+
+    Panzer.setAuthor("ASNProject");
+
+    Panzer.setModel("ESP32-WROOM");
+
+    Panzer.setSerialNumber("ESP32-0001");
+
+    // ==========================================
+    // Register Sensors
+    // ==========================================
 
     Panzer.addSensor("temperature", readTemperature);
     Panzer.addSensor("humidity", readHumidity);
+    Panzer.addSensor("gas", readGas);
 
-    // ================= Register Switches =================
+    // ==========================================
+    // Register Switch
+    // ==========================================
 
     Panzer.addSwitch("relay1", RELAY1);
     Panzer.addSwitch("relay2", RELAY2);
 
-    // ================= Register Buttons =================
+    // ==========================================
+    // Register Button
+    // ==========================================
 
     Panzer.addButton("restart", restartESP);
+    Panzer.addButton("capture", captureImage);
 
-    // ================= Register Events =================
+    // ==========================================
+    // Receive Every Packet
+    // ==========================================
 
-    Panzer.onReceive(onReceive);
+    Panzer.onReceive([](JsonObject data)
+    {
+        Serial.println("========== RECEIVE ==========");
 
-    Panzer.onSwitch(onSwitch);
+        serializeJsonPretty(data, Serial);
 
-    Panzer.onButton(onButton);
+        Serial.println();
+    });
+
+    // ==========================================
+    // Switch Changed
+    // ==========================================
+
+    Panzer.onSwitch([](const char* key, String value)
+    {
+        Serial.print("Switch : ");
+        Serial.print(key);
+
+        Serial.print(" = ");
+
+        Serial.println(value);
+    });
+
+    // ==========================================
+    // Button Pressed
+    // ==========================================
+
+    Panzer.onButton([](const char* key)
+    {
+        Serial.print("Button : ");
+
+        Serial.println(key);
+    });
 }
 
 void loop()
 {
     Panzer.update();
+
+    // ==========================================
+    // Read Current Dashboard Value
+    // ==========================================
+
+    String relay1 = Panzer.getButton("relay1");
+
+    String relay2 = Panzer.getButton("relay2");
+
+    Serial.print("Relay1 : ");
+    Serial.println(relay1);
+
+    Serial.print("Relay2 : ");
+    Serial.println(relay2);
+
 }

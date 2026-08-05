@@ -84,14 +84,25 @@ struct WiFiInfo {
     int rssi;
 };
 
-typedef float (*SensorCallback)();
+enum SensorType
+{
+    SENSOR_FLOAT,
+    SENSOR_INT,
+    SENSOR_BOOL,
+    SENSOR_STRING
+};
+
+typedef float (*FloatSensorCallback)();
+typedef int (*IntSensorCallback)();
+typedef bool (*BoolSensorCallback)();
+typedef String (*StringSensorCallback)();
 typedef void (*ActionCallback)();
 
 typedef void (*ReceiveCallback)(JsonObject data);
 
 typedef void (*SwitchCallback)(
     const char* key,
-    bool value
+    const String value
 );
 
 typedef void (*ButtonCallback)(
@@ -161,24 +172,16 @@ public:
     bool isWiFiConnected();
 
     // SENSOR & ACTION
-    void addSensor(const char* key, SensorCallback callback);
+    void addSensor(const char* key, FloatSensorCallback callback);
+    void addSensor(const char* key, IntSensorCallback callback);
+    void addSensor(const char* key, BoolSensorCallback callback);
+    void addSensor(const char* key, StringSensorCallback callback);
     void removeSensor(const char* key);
 
     // OUTPUT
     void addSwitch(const char* key, uint8_t pin);
-    void writeSwitch(const char* key, bool state);
-    bool getButton(const char* key);
-
-    // Alias Dashboard
-    inline void addSwitch(const char* key, uint8_t pin)
-    {
-        addSwitch(key, pin);
-    }
-
-    inline void writeSwitch(const char* key, bool state)
-    {
-        writeSwitch(key, state);
-    }
+    void writeSwitch(const char* key, const String& value);
+    String getButton(const char* key);
 
     // ACTION
     void addAction(const char* key, ActionCallback callback);
@@ -210,7 +213,15 @@ private:
     struct SensorItem
     {
         const char* key;
-        SensorCallback callback;
+        SensorType type;
+
+        union
+        {
+            FloatSensorCallback floatCallback;
+            IntSensorCallback intCallback;
+            BoolSensorCallback boolCallback;
+            StringSensorCallback stringCallback;
+        };
     };
 
     struct OutputItem

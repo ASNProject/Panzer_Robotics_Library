@@ -684,17 +684,72 @@ void PanzerRobotics::setSendInterval(uint32_t interval)
 
 void PanzerRobotics::addSensor(
     const char* key,
-    SensorCallback callback)
+    FloatSensorCallback callback)
 {
-    if(sensorCount >= MAX_SENSOR)
+    if (sensorCount >= MAX_SENSOR)
     {
         warning("Maximum sensor reached");
         return;
     }
 
     sensors[sensorCount].key = key;
-    sensors[sensorCount].callback = callback;
+    sensors[sensorCount].type = SENSOR_FLOAT;
+    sensors[sensorCount].floatCallback = callback;
+    sensorCount++;
 
+    info(String("Sensor Registered : ") + key);
+
+}
+
+void PanzerRobotics::addSensor(
+    const char* key,
+    IntSensorCallback callback)
+{
+    if (sensorCount >= MAX_SENSOR)
+    {
+        warning("Maximum sensor reached");
+        return;
+    }
+
+    sensors[sensorCount].key = key;
+    sensors[sensorCount].type = SENSOR_INT;
+    sensors[sensorCount].intCallback = callback;
+    sensorCount++;
+
+    info(String("Sensor Registered : ") + key);
+}
+
+void PanzerRobotics::addSensor(
+    const char* key,
+    BoolSensorCallback callback)
+{
+    if (sensorCount >= MAX_SENSOR)
+    {
+        warning("Maximum sensor reached");
+        return;
+    }
+
+    sensors[sensorCount].key = key;
+    sensors[sensorCount].type = SENSOR_BOOL;
+    sensors[sensorCount].boolCallback = callback;
+    sensorCount++;
+
+    info(String("Sensor Registered : ") + key);
+}
+
+void PanzerRobotics::addSensor(
+    const char* key,
+    StringSensorCallback callback)
+{
+    if (sensorCount >= MAX_SENSOR)
+    {
+        warning("Maximum sensor reached");
+        return;
+    }
+
+    sensors[sensorCount].key = key;
+    sensors[sensorCount].type = SENSOR_STRING;
+    sensors[sensorCount].stringCallback = callback;
     sensorCount++;
 
     info(String("Sensor Registered : ") + key);
@@ -751,7 +806,9 @@ void PanzerRobotics::writeSwitch(
             outputs[i].value = value;
 
             outputs[i].state =
-                value == "true";
+                value.equalsIgnoreCase("true") ||
+                value == "1" ||
+                value.equalsIgnoreCase("on");
 
             digitalWrite(
                 outputs[i].pin,
@@ -796,10 +853,24 @@ void PanzerRobotics::sendSensorPacket()
 
     for(uint8_t i = 0; i < sensorCount; i++)
     {
-        if(sensors[i].callback == nullptr)
-            continue;
+        switch (sensors[i].type)
+        {
+            case SENSOR_FLOAT:
+                data[sensors[i].key] = sensors[i].floatCallback();
+                break;
 
-        data[sensors[i].key] = sensors[i].callback();
+            case SENSOR_INT:
+                data[sensors[i].key] = sensors[i].intCallback();
+                break;
+
+            case SENSOR_BOOL:
+                data[sensors[i].key] = sensors[i].boolCallback();
+                break;
+
+            case SENSOR_STRING:
+                data[sensors[i].key] = sensors[i].stringCallback();
+                break;
+        }
     }
 
     serializeJson(doc, Serial);
@@ -857,7 +928,7 @@ void PanzerRobotics::processControl(
     JsonObject data)
 {
     const char* key =
-        data["key"];
+        data["key"] | "";
 
     String value =
         data["value"] | "";
