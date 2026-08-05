@@ -32,6 +32,15 @@
 
 ## Changelog Project
 
+### [v1.1.0]
+- Dashboard Communication
+- Sensor Manager
+- Switch Manager
+- Button Manager
+- Callback Event
+- Device Information
+- Logger
+
 ### [v1.0]
 - Create initial project
 - Add POST ESP32 Data to API
