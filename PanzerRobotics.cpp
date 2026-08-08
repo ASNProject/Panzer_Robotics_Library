@@ -55,7 +55,14 @@ PanzerRobotics::PanzerRobotics() : server(80) {
 // CORE
 void PanzerRobotics::begin()
 {
-    Serial.begin(115200);
+    serialPort = &Serial;
+
+    info("Panzer Robotics Started");
+}
+
+void PanzerRobotics::begin(HardwareSerial &serial)
+{
+    serialPort = &serial;
 
     info("Panzer Robotics Started");
 }
@@ -844,7 +851,7 @@ void PanzerRobotics::addAction(
 
 void PanzerRobotics::sendSensorPacket()
 {
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<2048> doc;
 
     doc["type"] = "sensor";
     doc["device"] = deviceName;
@@ -853,52 +860,87 @@ void PanzerRobotics::sendSensorPacket()
 
     for(uint8_t i = 0; i < sensorCount; i++)
     {
-        switch (sensors[i].type)
+        switch(sensors[i].type)
         {
             case SENSOR_FLOAT:
-                data[sensors[i].key] = sensors[i].floatCallback();
+
+                data[sensors[i].key] =
+                    sensors[i].floatCallback();
+
                 break;
 
             case SENSOR_INT:
-                data[sensors[i].key] = sensors[i].intCallback();
+
+                data[sensors[i].key] =
+                    sensors[i].intCallback();
+
                 break;
 
             case SENSOR_BOOL:
-                data[sensors[i].key] = sensors[i].boolCallback();
+
+                data[sensors[i].key] =
+                    sensors[i].boolCallback();
+
                 break;
 
             case SENSOR_STRING:
-                data[sensors[i].key] = sensors[i].stringCallback();
+
+                data[sensors[i].key] =
+                    sensors[i].stringCallback();
+
                 break;
         }
     }
 
-    serializeJson(doc, Serial);
-    Serial.println();
+    serializeJson(
+        doc,
+        *serialPort
+    );
+
+    serialPort->println();
 }
 
 void PanzerRobotics::receivePacket()
 {
-    if (!Serial.available())
+    if (!serialPort)
         return;
 
-    String packet = Serial.readStringUntil('\n');
+    if (!serialPort->available())
+        return;
+
+    String packet =
+        serialPort->readStringUntil('\n');
+
+    packet.trim();
 
     if (packet.length() == 0)
         return;
 
-    StaticJsonDocument<512> doc;
+    // ==================================================
+    // PARSE PACKET
+    // ==================================================
+
+    StaticJsonDocument<2048> doc;
 
     DeserializationError err =
-        deserializeJson(doc, packet);
+        deserializeJson(
+            doc,
+            packet
+        );
 
     if (err)
     {
-        warning("Invalid JSON");
+        warning(
+            String("Invalid JSON: ") +
+            err.c_str()
+        );
+
         return;
     }
 
-    // ================= Receive Callback =================
+    // ==================================================
+    // RECEIVE CALLBACK
+    // ==================================================
 
     if (receiveCallback)
     {
@@ -907,20 +949,69 @@ void PanzerRobotics::receivePacket()
         );
     }
 
+    // ==================================================
+    // PACKET TYPE
+    // ==================================================
+
     String type =
         doc["type"] | "";
+
+    // ==================================================
+    // RASPBERRY PI
+    // ==================================================
+
+    if (type == "raspi")
+    {
+        JsonObject data =
+            doc["data"].as<JsonObject>();
+
+        if (!data.isNull())
+        {
+            raspiData.clear();
+
+            raspiData["type"] = "raspi";
+
+            JsonObject target =
+                raspiData.createNestedObject("data");
+
+            for (JsonPair item : data)
+            {
+                target[item.key()] =
+                    item.value();
+            }
+
+            raspiDataAvailable = true;
+
+            info("Raspberry Pi data received");
+        }
+
+        return;
+    }
+
+    // ==================================================
+    // CONTROL
+    // ==================================================
 
     if (type == "control")
     {
         processControl(
             doc.as<JsonObject>()
         );
+
+        return;
     }
-    else if (type == "button")
+
+    // ==================================================
+    // BUTTON
+    // ==================================================
+
+    if (type == "button")
     {
         processAction(
             doc["key"] | ""
         );
+
+        return;
     }
 }
 
@@ -1008,4 +1099,120 @@ String PanzerRobotics::getButton(
     }
 
     return "";
+}
+
+// =======================================================
+// RASPBERRY PI DATA
+// =======================================================
+
+String PanzerRobotics::getDataRaspi(
+    const char* key
+)
+{
+    if (!raspiDataAvailable)
+        return "";
+
+    JsonObject data =
+        raspiData["data"].as<JsonObject>();
+
+    if (data.isNull())
+        return "";
+
+    if (!data.containsKey(key))
+        return "";
+
+    JsonVariant value =
+        data[key];
+
+    // ==================================================
+    // STRING
+    // ==================================================
+
+    if (value.is<const char*>())
+    {
+        return value.as<String>();
+    }
+
+    // ==================================================
+    // BOOLEAN
+    // ==================================================
+
+    if (value.is<bool>())
+    {
+        return value.as<bool>()
+            ? "true"
+            : "false";
+    }
+
+    // ==================================================
+    // NUMBER
+    // ==================================================
+
+    if (
+        value.is<int>() ||
+        value.is<long>() ||
+        value.is<float>() ||
+        value.is<double>()
+    )
+    {
+        String result;
+
+        serializeJson(
+            value,
+            result
+        );
+
+        return result;
+    }
+
+    // ==================================================
+    // OBJECT / ARRAY
+    // ==================================================
+
+    String result;
+
+    serializeJson(
+        value,
+        result
+    );
+
+    return result;
+}
+
+bool PanzerRobotics::hasDataRaspi(
+    const char* key
+)
+{
+    if (!raspiDataAvailable)
+        return false;
+
+    JsonObject data =
+        raspiData["data"].as<JsonObject>();
+
+    if (data.isNull())
+        return false;
+
+    return data.containsKey(key);
+}
+
+String PanzerRobotics::getRaspiData()
+{
+    if (!raspiDataAvailable)
+        return "";
+
+    String result;
+
+    serializeJson(
+        raspiData,
+        result
+    );
+
+    return result;
+}
+
+void PanzerRobotics::clearRaspiData()
+{
+    raspiData.clear();
+
+    raspiDataAvailable = false;
 }

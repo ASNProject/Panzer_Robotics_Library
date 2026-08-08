@@ -32,6 +32,10 @@
 
 ## Changelog Project
 
+### [v1.1.1]
+- Update for Serial1 Communication ESP32
+- Add getDataRaspi from Raspberry
+
 ### [v1.1.0]
 - Dashboard Communication
 - Sensor Manager

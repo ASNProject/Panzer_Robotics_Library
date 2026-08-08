@@ -135,6 +135,7 @@ public:
 
     // CORE
     void begin();
+    void begin(HardwareSerial &serial);
     void update();
 
     void enableDebug(bool enable = true);
@@ -209,6 +210,15 @@ public:
         ButtonCallback callback
     );
 
+    // ==========================
+    // RASPBERRY PI DATA
+    // ==========================
+
+    String getDataRaspi(const char* key);
+    bool hasDataRaspi(const char* key);
+    String getRaspiData();
+    void clearRaspiData();
+
 private:
     struct SensorItem
     {
@@ -267,6 +277,15 @@ private:
     uint32_t sendInterval = 1000;
 
     uint32_t lastSend = 0;
+
+    HardwareSerial* serialPort = &Serial;
+
+    // ===================================
+    // RASPBERRY PI DATA
+    // ===================================
+
+    StaticJsonDocument<1024> raspiData;
+    bool raspiDataAvailable = false;
 
     WebServer server;
     OV2640 cam;

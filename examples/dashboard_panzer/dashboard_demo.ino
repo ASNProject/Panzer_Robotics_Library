@@ -61,9 +61,29 @@ void setup()
 {
     Serial.begin(115200);
 
-    randomSeed(micros());
+    // ==============================================
+    // UART1
+    // RX = GPIO27
+    // TX = GPIO25
+    // ==============================================
 
-    Panzer.begin();
+    Serial1.begin(
+        115200,
+        SERIAL_8N1,
+        25,     // RX
+        27      // TX
+    );
+
+    // ==============================================
+    // PANZER ROBOTICS
+    // ==============================================
+
+    Panzer.begin(
+        Serial1
+    );
+
+
+    randomSeed(micros());
 
     Panzer.enableDebug();
 
@@ -163,5 +183,17 @@ void loop()
 
     Serial.print("Relay2 : ");
     Serial.println(relay2);
+
+    // =========================================
+    // GET DATA FROM RASPBERRY PI
+    // =========================================
+
+    String status = Panzer.getDataRaspi("status");
+
+    if (status.length() > 0)
+    {
+        Serial.print("Raspberry Pi Status : ");
+        Serial.println(status);
+    }
 
 }
